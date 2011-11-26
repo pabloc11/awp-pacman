@@ -38,7 +38,7 @@ Settings:
 TeamName = 'BaselineAgents'
 
 # Filename.FactoryClassName (CASE-sensitive)
-AgentFactory = 'baselineAgents.BaselineAgents'
+AgentFactory = 'baselineAgents.TestAgents'
 
 Partners = ['Partner Names']
 
