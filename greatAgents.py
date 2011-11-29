@@ -17,9 +17,6 @@ from util import nearestPoint
 import regularMutation
 from game import Actions
 
-redTeamBeliefs = list()
-blueTeamBeliefs = list()
-
 #############
 # FACTORIES #
 #############
@@ -119,22 +116,18 @@ class ReflexCaptureAgent(CaptureAgent):
     self.walls = gameState.getWalls()
     
     # Find all possible legal positions
-    width = self.getLayoutWidth(gameState)
-    height = self.getLayoutHeight(gameState)
-    beliefs = util.Counter() 
-    for i in range(0, width):
-        for j in range(0, height):
-            if gameState.hasWall(i,j) == False:
-                    beliefs[(i,j)] = 1
+    legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
+    beliefs = util.Counter()
+    for p in legalPositions:
+      beliefs[p] = 1
     beliefs.normalize()
                 
-    # set up beliefs for opponent agents
-    if self.red == True:
-        opponentTeam = gameState.blueTeam
-        redTeamBeliefs.append(beliefs.copy())
-    else:
-        opponentTeam = gameState.redTeam
-        blueTeamBeliefs.append(beliefs.copy())
+    # set up beliefs for each opponent agent
+    self.opponentBeliefs = []
+    self.opponentPositions = self.getOpponentPositions(gameState)
+    
+    for opponentIndex in self.getOpponents(gameState):
+      self.opponentBeliefs.append(beliefs.copy())
     
   """
   A base class for reflex agents that chooses score-maximizing actions
@@ -169,46 +162,45 @@ class ReflexCaptureAgent(CaptureAgent):
     '''
     
     myPosition = self.getPosition(gameState)
-    opponentPositions = self.getOpponentPositions(gameState)
+    self.opponentPositions = self.getOpponentPositions(gameState)
     opponents = self.getOpponents(gameState)
     team = self.getTeam(gameState)
-    teamPosition = self.getTeamPositions(gameState)
+    teamPositions = self.getTeamPositions(gameState)
     
-    for j, position in enumerate(opponentPositions): 
-        if self.red == True:
-            beliefs = redTeamBeliefs[j]  
-        else:
-            beliefs = blueTeamBeliefs[j]    
+    for i, position in enumerate(self.opponentPositions):
+      beliefs = self.opponentBeliefs[i]     
         
-        # beliefs are re-initialized if pacman is captured
-        if beliefs[beliefs.argMax()] == 0:
-            beliefs.incrementAll(beliefs.keys(), 1)
-                
-        if position == None:
-            oldBeliefs = beliefs.copy()
-            noisyDistance = gameState.getAgentDistance(opponents[j])
-            for pos in beliefs:
-                trueDistance = util.manhattanDistance(myPosition, pos)
-                distanceProb = gameState.getDistanceProb(trueDistance, noisyDistance)
-                if distanceProb == 0:
-                    beliefs[pos] = 0
-                else:
-                    sum = 0
-                    previousPos = Actions.getLegalNeighbors(pos, self.walls)
-                    for prePos in previousPos:
-                        sum += oldBeliefs[prePos]
-                    beliefs[pos] += sum / len(previousPos) 
-                    beliefs[pos] *= distanceProb
-            opponentPositions[j] = beliefs.argMax()
-        else:
-            # update beliefs for known opponent position, zero down all other possibilities
-            beliefs[(position)] = 10000
+      # beliefs are re-initialized if pacman is captured
+      if beliefs[beliefs.argMax()] == 0:
+        beliefs.incrementAll(beliefs.keys(), 1)
         beliefs.normalize()
+          
+      if position == None:
+        oldBeliefs = beliefs.copy()
+        noisyDistance = gameState.getAgentDistance(opponents[i])
+        for pos in beliefs:
+          trueDistance = util.manhattanDistance(myPosition, pos)
+          distanceProb = gameState.getDistanceProb(trueDistance, noisyDistance)
+          if distanceProb == 0:
+            beliefs[pos] = 0
+          else:
+            sum = 0
+            previousPos = Actions.getLegalNeighbors(pos, self.walls)
+            for prePos in previousPos:
+              sum += oldBeliefs[prePos]
+            beliefs[pos] += sum / len(previousPos) 
+            beliefs[pos] *= distanceProb
+        self.opponentPositions[i] = beliefs.argMax()
+      else:
+        # update beliefs for known opponent position, zero down all other possibilities
+        beliefs[(position)] = 10000
+      beliefs.normalize()
     
     # print out opponents' positions (max prob)
     if self.index == 0:
-        for index, pos in enumerate(opponentPositions):
-            print opponents[index], pos
+      self.displayDistributionsOverPositions(self.opponentBeliefs)
+      for index, pos in enumerate(self.opponentPositions):
+        print opponents[index], pos, self.opponentBeliefs[index]
 
   def getSuccessor(self, gameState, action):
     """
