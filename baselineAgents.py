@@ -74,15 +74,6 @@ class OffenseDefenseAgents(AgentFactory):
       return OffensiveReflexAgent(index)
     else:
       return DefensiveReflexAgent(index)
-    
-class TestAgents(AgentFactory):
-  "Agent factory for testing purposes"
-  
-  def __init__(self, **args):
-    AgentFactory.__init__(self, **args)
-    
-  def getAgent(self, index):
-    return ObservingAgent(index)
 
 ##########
 # Agents #
@@ -284,102 +275,5 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     weights['stop'] = -1
     weights['reverse'] = -1
     return weights
-  
-class ObservingAgent(CaptureAgent):
-  def __init__(self, index):
-    CaptureAgent.__init__(self, index)
-    
-    self.legalPositions = []
-    
-    "tuple with (boolean, belief distribution, actual/most probable position)"
-    "TODO: Assumes 6 agents, will not always work"
-    self.positions = [None, None, None, None, None, None] 
-    
-    self.firstMove = True
-  
-  def registerInitialState(self, gameState):
-    CaptureAgent.registerInitialState(self, gameState)
-
-    self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]  
-    
-    "This team's positions"
-    for i in self.getTeam(gameState):
-      self.positions[i] = [True, None, gameState.getAgentPosition(i)]
-    
-    for i in self.getOpponents(gameState):
-      self.positions[i] = [False, util.Counter(), None]
-    
-    for position in self.legalPositions:
-      for (certain, counter, actualPos) in self.positions:
-        if not certain:
-          counter[position] = 1.0
-    
-    for (certain, counter, actualPos) in self.positions:
-      if not certain:
-        counter.normalize()
-        actualPos = counter.argMax()
-
-  def observe(self, i, gameState):
-    noisyDistance = gameState.getAgentDistance(i)
-    currentBeliefs = self.positions[i][1]
-    
-    normalizer = 0;
-    for p in self.legalPositions:
-      trueDistance = util.manhattanDistance(p, self.getPosition(gameState))
-      normalizer += gameState.getDistanceProb(trueDistance, noisyDistance)
-      
-    newBeliefs = util.Counter()  
-    for p in self.legalPositions:
-      trueDistance = util.manhattanDistance(p, self.getPosition(gameState))
-      newBeliefs[p] = currentBeliefs[p] * gameState.getDistanceProb(trueDistance, noisyDistance) / normalizer;
-    newBeliefs.normalize()  
-    
-    self.positions[i][1] = newBeliefs
-    
-  def elapseTime(self, i, gameState):
-    newBeliefs = util.Counter()
-    for oldPos in self.legalPositions:
-      
-      possibleNextPositions = []
-      possibleDeltas = [(0, 1), (0, -1), (1, 0), (-1, 0), (0, 0)]
-      for dx, dy in possibleDeltas:
-        nextX = oldPos[0] + dx
-        nextY = oldPos[1] + dy
-        if not gameState.hasWall(nextX, nextY): 
-          possibleNextPositions.append((nextX, nextY))
-          
-      newPosProb = 1 / len(possibleNextPositions)
-      oldPosProb = self.positions[i][1][oldPos]
-      for newPos in possibleNextPositions:
-        newBeliefs[newPos] += newPosProb * oldPosProb 
-    
-    newBeliefs.normalize()
-    self.positions[i][1] = newBeliefs
-    
-  def updatePositions(self, gameState):
-    for i in self.getTeam(gameState):
-      self.positions[i][2] = gameState.getAgentPosition(i)
-      
-    for i in self.getOpponents(gameState):
-      actualPosition = gameState.getAgentPosition(i)
-      if actualPosition == None:
-        self.positions[i][0] = False
-        
-        if not self.firstMove :
-          self.elapseTime(i, gameState)
-        self.firstMove = False
-        self.observe(i, gameState)
-
-        self.positions[i][2] = self.positions[i][1].argMax()
-      else:
-        self.positions[i][0] = True
-        self.positions[i][1].clear()
-        self.positions[i][1][actualPosition] = 1.0
-        self.positions[i][2] = actualPosition
-  
-  def chooseAction(self, gameState):
-    self.updatePositions(gameState)
-    self.displayDistributionsOverPositions([x[1] for x in self.positions])
-    return None
 
 
